@@ -44,6 +44,26 @@ train_reviews_df.to_csv(OUT_TRAIN_REVIEWS, index=False)
 test_reviews_df.to_csv(OUT_TEST_REVIEWS, index=False)
 print(f"-> {OUT_TRAIN_REVIEWS}, {OUT_TEST_REVIEWS} 파일 저장 완료.")
 
+if 'review_time' not in reviews_df.columns:
+    print("오류: 'review_time' 컬럼이 없어 분할이 불가능합니다.")
+    exit()
+
+print("\n--- 0. 시간순 데이터 분할 시작 ---")
+reviews_df['review_time'] = pd.to_datetime(reviews_df['review_time'], unit='s')
+reviews_df = reviews_df.sort_values(by='review_time')
+
+split_point = int(len(reviews_df) * 0.8)
+train_reviews_df = reviews_df.iloc[:split_point]
+test_reviews_df = reviews_df.iloc[split_point:]
+
+print(f"훈련셋 (80%): {len(train_reviews_df)}개")
+print(f"테스트셋 (20%): {len(test_reviews_df)}개")
+
+# ★★★★★ [추가된 로직] 훈련셋/테스트셋 CSV 파일 저장 ★★★★★
+train_reviews_df.to_csv(OUT_TRAIN_REVIEWS, index=False)
+test_reviews_df.to_csv(OUT_TEST_REVIEWS, index=False)
+print(f"-> {OUT_TRAIN_REVIEWS}, {OUT_TEST_REVIEWS} 파일 저장 완료.")
+
 # ---
 # 1. 모델 기반 협업 필터링 (CF)
 # ---
