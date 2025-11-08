@@ -23,6 +23,9 @@ import numpy as np
 REVIEWS_CLEAN_PATH = "/beer_reviews_clean.csv"
 RECIPES_CLEAN_PATH = "/recipes_clean.csv"
 
+OUT_TRAIN_REVIEWS = "train_reviews.csv"
+OUT_TEST_REVIEWS = "test_reviews.csv"
+
 try:
     reviews_df = pd.read_csv(REVIEWS_CLEAN_PATH, low_memory=False)
     recipes_df = pd.read_csv(RECIPES_CLEAN_PATH, low_memory=False)
@@ -33,27 +36,35 @@ except FileNotFoundError:
     print("=" * 50)
     exit()  # 프로그램 종료
 
+if 'review_time' not in reviews_df.columns:
+    print("오류: 'review_time' 컬럼이 없어 분할이 불가능합니다.")
+    exit()
+
+print("\n--- 0. 시간순 데이터 분할 시작 ---")
+reviews_df['review_time'] = pd.to_datetime(reviews_df['review_time'], unit='s')
+reviews_df = reviews_df.sort_values(by='review_time')
+
+split_point = int(len(reviews_df) * 0.8)
+train_reviews_df = reviews_df.iloc[:split_point]
+test_reviews_df = reviews_df.iloc[split_point:]
+
+print(f"훈련셋 (80%): {len(train_reviews_df)}개")
+print(f"테스트셋 (20%): {len(test_reviews_df)}개")
+
+# ★★★★★ [추가된 로직] 훈련셋/테스트셋 CSV 파일 저장 ★★★★★
+train_reviews_df.to_csv(OUT_TRAIN_REVIEWS, index=False)
+test_reviews_df.to_csv(OUT_TEST_REVIEWS, index=False)
+print(f"-> {OUT_TRAIN_REVIEWS}, {OUT_TEST_REVIEWS} 파일 저장 완료.")
+
 # ---
 # 1. 모델 기반 협업 필터링 (CF)
 # ---
 print("\n--- 1. 협업 필터링(CF) 모델 학습 ---")
-reviews_sample_df = reviews_df.sample(n=min(len(reviews_df), 100000), random_state=42)
 reader = Reader(rating_scale=(1, 5))
-data = Dataset.load_from_df(reviews_sample_df[['review_profilename', 'beer_name_norm', 'review_overall']], reader)
-
-kf = KFold(n_splits=3)
+full_train_data = Dataset.load_from_df(train_reviews_df[['review_profilename', 'beer_name_norm', 'review_overall']], reader)
+full_trainset = full_train_data.build_full_trainset()
 algo_svd = SVD(n_factors=50, n_epochs=20, random_state=42)
-
-print("SVD 모델 교차검증 (RMSE) 시작...")
-for trainset, testset in kf.split(data):
-    algo_svd.fit(trainset)
-    predictions = algo_svd.test(testset)
-    accuracy.rmse(predictions, verbose=True)
-
-print("전체 데이터로 최종 SVD 모델 학습")
-full_trainset = data.build_full_trainset()
 algo_svd.fit(full_trainset)
-print("CF 모델 학습 완료.")
 
 # ---
 # 2. 콘텐츠 기반 필터링 (CBF)
@@ -141,7 +152,7 @@ def get_all_recommendations(user_id, top_n=10):
     3. Hybrid (CF * CBF) 추천
     """
 
-    user_reviews = reviews_df[reviews_df['review_profilename'] == user_id]
+    user_reviews = train_reviews_df[train_reviews_df['review_profilename'] == user_id]
     user_rated_beers = set(user_reviews['beer_name_norm'])
     top_user_beers = user_reviews[user_reviews['review_overall'] >= 4.0]['beer_name_norm'].unique()
 
@@ -180,7 +191,7 @@ def get_all_recommendations(user_id, top_n=10):
 # 4. 최종 추천 예시
 # ---
 print("\n--- 테스트용 Top 5 리뷰어 ---")
-top_reviewers = reviews_df['review_profilename'].value_counts().head(5)
+top_reviewers = train_reviews_df['review_profilename'].value_counts().head(5)
 print(top_reviewers)
 print("------------------------------")
 
