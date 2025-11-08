@@ -21,19 +21,20 @@ from difflib import get_close_matches
 # =============================
 # Config (경로/옵션/임계값)
 # =============================
-REVIEWS_PATH = "C:/Users/ATIV/Desktop/vscode/CV/beer_reviews.csv"
-RECIPES_PATH = "C:/Users/ATIV/Desktop/vscode/CV/recipeData.csv"
+REVIEWS_PATH = "/Users/seojaejun/PycharmProjects/ML_team/beer_reviews.csv"
+RECIPES_PATH = "/Users/seojaejun/PycharmProjects/ML_team/recipeData.csv"
 
-OUT_REVIEWS_CLEAN = "C:/Users/ATIV/Desktop/vscode/CV/data/beer_reviews_clean.csv"
-OUT_RECIPES_CLEAN = "C:/Users/ATIV/Desktop/vscode/CV/data/recipes_clean.csv"
-OUT_LINKAGE       = "C:/Users/ATIV/Desktop/vscode/CV/data/beer_name_linkage.csv"
-OUT_REPORT        = "C:/Users/ATIV/Desktop/vscode/CV/data/filtering_report.txt"
+OUT_REVIEWS_CLEAN = "/Users/seojaejun/PycharmProjects/ML_team/beer_reviews_clean.csv"
+OUT_RECIPES_CLEAN = "/Users/seojaejun/PycharmProjects/ML_team/recipes_clean.csv"
+OUT_LINKAGE       = "/Users/seojaejun/PycharmProjects/ML_team/beer_name_linkage.csv"
+OUT_REPORT        = "/Users/seojaejun/PycharmProjects/ML_team/filtering_report.txt"
 
 # 수치 필터 범위(필요 시 조정)
 ABV_MIN, ABV_MAX = 0.0, 20.0
 IBU_MIN, IBU_MAX = 0.0, 150.0
 OG_MIN,  OG_MAX  = 1.000, 1.150
 FG_MIN,  FG_MAX  = 0.980, 1.060
+COLOR_MIN, COLOR_MAX = 0.0, 60.0
 
 # 문자열 정규화 관련
 MIN_NAME_LEN = 3
@@ -129,6 +130,7 @@ rec_colmap_candidates = {
     "IBU": ["IBU"],
     "OG": ["OG", "OriginalGravity"],
     "FG": ["FG", "FinalGravity"],
+    "Color": ["Color", "SRM"], # Color 컬럼 후보 추가
     "BrewMethod": ["BrewMethod", "Method"],
 }
 rec_map = map_first_existing(recipes, rec_colmap_candidates)
@@ -155,10 +157,19 @@ if "beer_abv" in reviews.columns:
     reviews = reviews[(reviews["beer_abv"].isna()) | (reviews["beer_abv"].between(ABV_MIN, ABV_MAX))]
 
 for col, (lo, hi) in {"ABV": (ABV_MIN, ABV_MAX), "IBU": (IBU_MIN, IBU_MAX),
-                      "OG": (OG_MIN, OG_MAX), "FG": (FG_MIN, FG_MAX)}.items():
+                      "OG": (OG_MIN, OG_MAX), "FG": (FG_MIN, FG_MAX),"Color":(COLOR_MIN,COLOR_MAX)}.items():
     if col in recipes.columns:
         recipes[col] = recipes[col].apply(safe_float)
         recipes = recipes[(recipes[col].isna()) | (recipes[col].between(lo, hi))]
+
+rec_dropped_style_nan = 0
+if "Style" in recipes.columns:
+    rec_before_style_drop = len(recipes)
+    print("Filtering recipes with missing 'Style'...")
+    recipes = recipes[recipes["Style"].notna() & (recipes["Style"].str.strip() != "")].copy()
+    rec_dropped_style_nan = rec_before_style_drop - len(recipes)
+else:
+    print("Warning: 'Style' column not found in recipes. Skipping style filter.")
 
 # 중복 제거
 key_cols = [c for c in ["review_profilename", "beer_name_norm", "review_time"] if c in reviews.columns]
