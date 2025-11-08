@@ -1,59 +1,58 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+
 """
 Beer Recommendation System Model (Final Version)
 (CF, CBF, Hybrid)
-
 """
 
 import pandas as pd
 from surprise import SVD, Dataset, Reader
-from surprise.model_selection import KFold
-from surprise import accuracy
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
-import numpy as np
 
 # ---
-# 0. 데이터 로드 (파일 경로 수정 필수)
+# 0. 데이터 로드
 # ---
-# ※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※
-# ※  이 경로 2개를 사용자의 .csv 파일 위치로 수정하세요.   ※
-# ※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※※
 REVIEWS_CLEAN_PATH = "/beer_reviews_clean.csv"
 RECIPES_CLEAN_PATH = "/recipes_clean.csv"
+
+OUT_TRAIN_REVIEWS = "train_reviews.csv"
+OUT_TEST_REVIEWS = "test_reviews.csv"
 
 try:
     reviews_df = pd.read_csv(REVIEWS_CLEAN_PATH, low_memory=False)
     recipes_df = pd.read_csv(RECIPES_CLEAN_PATH, low_memory=False)
 except FileNotFoundError:
-    print("=" * 50)
-    print(f"오류: CSV 파일을 찾을 수 없습니다.")
-    print(f"파일 경로를 {REVIEWS_CLEAN_PATH} 와 {RECIPES_CLEAN_PATH} 로 올바르게 수정해주세요.")
-    print("=" * 50)
-    exit()  # 프로그램 종료
+    print("오류: CSV 파일을 찾을 수 없습니다.")
+    exit()
+
+if 'review_time' not in reviews_df.columns:
+    print("오류: 'review_time' 컬럼이 없어 분할이 불가능합니다.")
+    exit()
+
+print("\n--- 0. 시간순 데이터 분할 시작 ---")
+reviews_df['review_time'] = pd.to_datetime(reviews_df['review_time'], unit='s')
+reviews_df = reviews_df.sort_values(by='review_time')
+
+split_point = int(len(reviews_df) * 0.8)
+train_reviews_df = reviews_df.iloc[:split_point]
+test_reviews_df = reviews_df.iloc[split_point:]
+
+print(f"훈련셋 (80%): {len(train_reviews_df)}개")
+print(f"테스트셋 (20%): {len(test_reviews_df)}개")
+
+train_reviews_df.to_csv(OUT_TRAIN_REVIEWS, index=False)
+test_reviews_df.to_csv(OUT_TEST_REVIEWS, index=False)
+print(f"-> {OUT_TRAIN_REVIEWS}, {OUT_TEST_REVIEWS} 파일 저장 완료.")
 
 # ---
 # 1. 모델 기반 협업 필터링 (CF)
 # ---
 print("\n--- 1. 협업 필터링(CF) 모델 학습 ---")
-reviews_sample_df = reviews_df.sample(n=min(len(reviews_df), 100000), random_state=42)
 reader = Reader(rating_scale=(1, 5))
-data = Dataset.load_from_df(reviews_sample_df[['review_profilename', 'beer_name_norm', 'review_overall']], reader)
-
-kf = KFold(n_splits=3)
+full_train_data = Dataset.load_from_df(train_reviews_df[['review_profilename', 'beer_name_norm', 'review_overall']], reader)
+full_trainset = full_train_data.build_full_trainset()
 algo_svd = SVD(n_factors=50, n_epochs=20, random_state=42)
-
-print("SVD 모델 교차검증 (RMSE) 시작...")
-for trainset, testset in kf.split(data):
-    algo_svd.fit(trainset)
-    predictions = algo_svd.test(testset)
-    accuracy.rmse(predictions, verbose=True)
-
-print("전체 데이터로 최종 SVD 모델 학습")
-full_trainset = data.build_full_trainset()
 algo_svd.fit(full_trainset)
-print("CF 모델 학습 완료.")
 
 # ---
 # 2. 콘텐츠 기반 필터링 (CBF)
@@ -67,8 +66,9 @@ if len(recipes_df) > SAMPLING_SIZE:
 
 recipes_features = recipes_df.drop_duplicates(subset=['beer_name_norm']).set_index('beer_name_norm')
 
-# 피처(Features) 정의
+# 피처 정의
 numerical_features = ['ABV', 'IBU', 'OG', 'FG', 'Color']
+
 for col in numerical_features:
     if col in recipes_features.columns:
         recipes_features[col] = recipes_features[col].fillna(recipes_features[col].mean())
@@ -84,7 +84,7 @@ features_scaled_df = pd.DataFrame(
     index=recipes_features.index
 )
 
-# 범주형 피처(Style) 원-핫 인코딩
+# 범주형 피처 원-핫 인코딩
 if 'Style' in recipes_features.columns:
     style_dummies = pd.get_dummies(recipes_features['Style'], prefix='Style')
     # 수치형 + 범주형 피처 결합
@@ -141,7 +141,7 @@ def get_all_recommendations(user_id, top_n=10):
     3. Hybrid (CF * CBF) 추천
     """
 
-    user_reviews = reviews_df[reviews_df['review_profilename'] == user_id]
+    user_reviews = train_reviews_df[train_reviews_df['review_profilename'] == user_id]
     user_rated_beers = set(user_reviews['beer_name_norm'])
     top_user_beers = user_reviews[user_reviews['review_overall'] >= 4.0]['beer_name_norm'].unique()
 
@@ -149,7 +149,7 @@ def get_all_recommendations(user_id, top_n=10):
         print(f"'{user_id}'님은 평점 4.0 이상인 맥주가 없습니다. (콜드 스타트)")
         return None, None, None
 
-    # CBF 후보군 점수를 '누적(sum)' 대신 '최대값(max)'으로 저장
+    # CBF 후보군 점수 저장
     candidate_beers = {}
     for beer_norm in top_user_beers:
         similar_beers = get_content_based_recommendations(beer_norm, top_n=10)
@@ -163,7 +163,7 @@ def get_all_recommendations(user_id, top_n=10):
 
         cf_score = algo_svd.predict(uid=user_id, iid=beer_norm).est
 
-        # Hybrid 점수 계산 (가중치 곱셈)
+        # Hybrid 점수 계산
         hybrid_score = (cf_score ** W_CF) * (cbf_max_score ** W_CBF)
 
         all_scores.append((beer_norm, cf_score, cbf_max_score, hybrid_score))
@@ -180,7 +180,7 @@ def get_all_recommendations(user_id, top_n=10):
 # 4. 최종 추천 예시
 # ---
 print("\n--- 테스트용 Top 5 리뷰어 ---")
-top_reviewers = reviews_df['review_profilename'].value_counts().head(5)
+top_reviewers = train_reviews_df['review_profilename'].value_counts().head(5)
 print(top_reviewers)
 print("------------------------------")
 
