@@ -17,17 +17,22 @@ Output:
 import os, re, math, json, time
 import pandas as pd
 from difflib import get_close_matches
+import kagglehub
+
 
 # =============================
 # Config (경로/옵션/임계값)
 # =============================
-REVIEWS_PATH = "/Users/seojaejun/PycharmProjects/ML_team/beer_reviews.csv"
-RECIPES_PATH = "/Users/seojaejun/PycharmProjects/ML_team/recipeData.csv"
 
-OUT_REVIEWS_CLEAN = "/Users/seojaejun/PycharmProjects/ML_team/beer_reviews_clean.csv"
-OUT_RECIPES_CLEAN = "/Users/seojaejun/PycharmProjects/ML_team/recipes_clean.csv"
-OUT_LINKAGE       = "/Users/seojaejun/PycharmProjects/ML_team/beer_name_linkage.csv"
-OUT_REPORT        = "/Users/seojaejun/PycharmProjects/ML_team/filtering_report.txt"
+
+# Download latest version
+REVIEWS_PATH= kagglehub.dataset_download("rdoume/beerreviews")
+RECIPES_PATH = kagglehub.dataset_download("jtrofe/beer-recipes")
+
+OUT_REVIEWS_CLEAN = "/beer_reviews_clean.csv"
+OUT_RECIPES_CLEAN = "/ML_team/recipes_clean.csv"
+OUT_LINKAGE       = "/beer_name_linkage.csv"
+OUT_REPORT        = "/filtering_report.txt"
 
 # 수치 필터 범위(필요 시 조정)
 ABV_MIN, ABV_MAX = 0.0, 20.0
