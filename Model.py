@@ -1,4 +1,3 @@
-
 """
 Beer Recommendation System Model (Final Version)
 (CF, CBF, Hybrid)
@@ -59,7 +58,6 @@ test_reviews_df = reviews_df.iloc[split_point:]
 print(f"훈련셋 (80%): {len(train_reviews_df)}개")
 print(f"테스트셋 (20%): {len(test_reviews_df)}개")
 
-# ★★★★★ [추가된 로직] 훈련셋/테스트셋 CSV 파일 저장 ★★★★★
 train_reviews_df.to_csv(OUT_TRAIN_REVIEWS, index=False)
 test_reviews_df.to_csv(OUT_TEST_REVIEWS, index=False)
 print(f"-> {OUT_TRAIN_REVIEWS}, {OUT_TEST_REVIEWS} 파일 저장 완료.")
