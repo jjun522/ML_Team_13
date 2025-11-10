@@ -33,7 +33,7 @@ async function loadData() {
   } catch (err) {
     tableBody.innerHTML = `<tr><td colspan="5" class="muted">Failed to load recommendations.</td></tr>`;
     statusBox.textContent = `Error: ${err.message}`;
-    metricsPanel.textContent = "지표를 불러오지 못했습니다.";
+    metricsPanel.textContent = "Failed to load metrics.";
   }
 }
 
@@ -46,7 +46,7 @@ function updateMeta(data) {
 
 function renderMetrics(metrics) {
   if (!metrics) {
-    metricsPanel.textContent = "평가 지표 파일이 없습니다.";
+    metricsPanel.textContent = "Metrics file is missing.";
     return;
   }
   const rows = [

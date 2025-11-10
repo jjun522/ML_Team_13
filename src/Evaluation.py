@@ -6,7 +6,7 @@ import math
 import json
 from datetime import datetime
 from scipy.sparse import csr_matrix
-# Surprise 라이브러리: 추천 시스템 모델 구축 및 평가에 특화된 파이썬 라이브러리
+# Surprise is used for CF modeling/evaluation
 from surprise import Dataset, Reader, SVD, accuracy
 from surprise.model_selection import train_test_split
 from utils.paths import (
@@ -19,93 +19,92 @@ from utils.paths import (
 
 ensure_dirs()
 
-# 0. 설정 및 하이퍼파라미터
+# 0. Settings and hyperparameters
 
-# 튜닝된 하이퍼파라미터
-K = 10 # 추천할 아이템 개수 (Top-K)
-RELEVANCE_THRESHOLD = 4.0 # 관련 항목(Ground Truth)을 정의하는 평점 임계값
-W_CF = 1.0 # CF 점수에 부여할 가중치
-W_CBF = 0.8 # CBF 점수에 부여할 가중치
-N_FACTORS = 50 # SVD 모델의 잠재 요인(Latent Factors) 개수
-MIN_USER_REVIEWS = 10 # 최소 리뷰 개수 미만인 유저는 제외
-MIN_BEER_REVIEWS = 10 # 최소 리뷰 개수 미만인 맥주는 제외
-MIN_CBF_SIMILARITY = 0.4 # CBF 추천 후보군에 포함되기 위한 최소 콘텐츠 유사도
+# Tuned hyperparameters
+K = 10 # number of items in each list (Top-K)
+RELEVANCE_THRESHOLD = 4.0 # label items as relevant when rating >= threshold
+W_CF = 1.0 # weight for CF score
+W_CBF = 0.8 # weight for CBF score
+N_FACTORS = 50 # number of latent factors for SVD
+MIN_USER_REVIEWS = 10 # drop users with fewer reviews
+MIN_BEER_REVIEWS = 10 # drop beers with fewer reviews
+MIN_CBF_SIMILARITY = 0.4 # minimum similarity to keep an item in CBF pool
 RANDOM_STATE = 42
 
-# 메모리 문제 해결을 위해 CBF 계산에 사용할 아이템 최대 개수 지정
+# Limit CBF calculations to avoid memory spikes
 MAX_CBF_ITEMS = 20000
 
-# 데이터 로드
-print("데이터 로드 중")
+# Load data
+print("Loading datasets...")
 try:
     train_reviews_df = pd.read_csv(TRAIN_REVIEWS_CSV, low_memory=False)
     test_reviews_df = pd.read_csv(TEST_REVIEWS_CSV, low_memory=False)
     recipes_df = pd.read_csv(OUT_RECIPES_CLEAN, low_memory=False)
 except FileNotFoundError as e:
-    print("오류: 파일을 찾을 수 없습니다.", e)
+    print("Error: file not found.", e)
     exit()
 
-print(f"훈련셋 {len(train_reviews_df)}, 테스트셋 {len(test_reviews_df)}, 레시피 {len(recipes_df)} 로드 완료.")
+print(f"Loaded train={len(train_reviews_df)}, test={len(test_reviews_df)}, recipes={len(recipes_df)}.")
 
-# 데이터 필터링
-print("\n 최소 리뷰 개수 기준으로 데이터 필터링")
+# Filter users/beers with too few reviews
+print("\nFiltering by minimum review counts...")
 user_counts = train_reviews_df['review_profilename'].value_counts()
 active_users = user_counts[user_counts >= MIN_USER_REVIEWS].index
 train_reviews_df = train_reviews_df[train_reviews_df['review_profilename'].isin(active_users)]
 beer_counts = train_reviews_df['beer_name_norm'].value_counts()
 popular_beers = beer_counts[beer_counts >= MIN_BEER_REVIEWS].index
 train_reviews_df = train_reviews_df[train_reviews_df['beer_name_norm'].isin(popular_beers)]
-print(f"필터링 후 훈련셋 크기: {len(train_reviews_df)}")
+print(f"Train rows after filtering: {len(train_reviews_df)}")
 
-# 1. CF 모델 학습 (Surprise SVD)
-print("\n 1. CF 모델 (Surprise SVD) 학습 중")
-# Reader 객체 생성: 평점의 스케일(1점부터 5점까지)을 Surprise에 알려줌
+# 1. Train CF model (Surprise SVD)
+print("\n 1) Training CF model (Surprise SVD)")
+# Reader tells Surprise the rating scale (1-5)
 reader = Reader(rating_scale=(1, 5))
 data = Dataset.load_from_df(
-    # Surprise 데이터셋 형식으로 변환: 사용자, 아이템, 평점 컬럼만 사용
+    # Convert into Surprise format: user, item, rating
     train_reviews_df[['review_profilename', 'beer_name_norm', 'review_overall']],
     reader
 )
 
-# SVD(Singular Value Decomposition) 모델 초기화
+# Initialize SVD (matrix factorization) model
 model_svd = SVD(n_factors=N_FACTORS, random_state=RANDOM_STATE, n_epochs=25, lr_all=0.005, reg_all=0.02)
 trainset = data.build_full_trainset()
 model_svd.fit(trainset)
-print(" CF 모델 학습 완료 (Surprise SVD)")
+print(" CF model training complete.")
 
-# 2. CBF 모델 (유사도 행렬)
-print("\n2. CBF 유사도 행렬 생성 중")
+# 2. CBF model (similarity matrix)
+print("\n2) Building CBF similarity matrix")
 
-# 훈련셋에 있는 아이템만 추출
+# Keep only items that appear in the training set
 item_indices = [trainset.to_raw_iid(i) for i in trainset.all_items()]
 
 filtered_beer_names = set(item_indices)
 recipes_features_filtered = recipes_df[recipes_df['beer_name_norm'].isin(filtered_beer_names)].copy()
 recipes_features = recipes_features_filtered.drop_duplicates(subset=['beer_name_norm']).set_index('beer_name_norm')
 
-# 학습된 아이템 목록 기준으로 인덱스 재정렬 (매칭 안 되면 NaN)
+# Reindex using the trained item order (missing items become NaN)
 recipes_features = recipes_features.reindex(item_indices)
-# 모든 피처가 NaN인 행은 제거
+# Drop rows where every feature is NaN
 recipes_features = recipes_features.dropna(how='all')
 
-# CBF 아이템 개수 제한 로직
+# Limit how many items we keep for CBF
 original_cbf_count = len(recipes_features.index)
-print(f"CBF 유사도 계산 대상 원본 아이템 개수: {original_cbf_count}개")
+print(f"CBF candidate items: {original_cbf_count}")
 
 if original_cbf_count > MAX_CBF_ITEMS:
-    # 가장 리뷰가 많은 상위 MAX_CBF_ITEMS 개만 선택
+    # Keep only the most popular MAX_CBF_ITEMS recipes
     top_cbf_items = popular_beers.head(MAX_CBF_ITEMS).index
     recipes_features = recipes_features.loc[recipes_features.index.intersection(top_cbf_items)]
-    print(f"-> 메모리 제약을 위해 CBF 아이템 개수를 {len(recipes_features.index)}개로 축소했습니다.")
+    print(f"-> Trimmed to {len(recipes_features.index)} recipes for stability.")
 
-# 피처 전처리 계속
+# Continue feature prep
 numerical_features = [col for col in ['ABV', 'IBU', 'OG', 'FG', 'Color'] if col in recipes_features.columns]
 for col in numerical_features:
-    # NaN 값은 해당 컬럼의 평균으로 대체
+    # Replace NaNs with the column mean
     recipes_features[col] = recipes_features[col].fillna(recipes_features[col].mean())
 
-# MinMaxScaler를 사용하여 수치형 피처 정규화
-# 각 피처의 값을 0과 1 사이로 스케일링하여 유사도 계산 시 특정 피처의 값 크기에 의한 편향을 방지
+# Scale numeric features with MinMaxScaler to avoid bias during similarity
 scaler = MinMaxScaler()
 features_scaled_df = pd.DataFrame(
     scaler.fit_transform(recipes_features[numerical_features]),
@@ -114,81 +113,80 @@ features_scaled_df = pd.DataFrame(
 )
 if 'Style' in recipes_features.columns:
     style_dummies = pd.get_dummies(recipes_features['Style'], prefix='Style')
-    # 원-핫 인코딩 후, 인덱스 재정렬 및 누락된 부분은 0으로 채움
+    # Align indices after one-hot encoding and fill missing rows with 0
     style_dummies = style_dummies.reindex(recipes_features.index, fill_value=0)
     final_features_df = pd.concat([features_scaled_df, style_dummies], axis=1)
 else:
     final_features_df = features_scaled_df
 
-# 최종적으로 남아있을 수 있는 NaN을 0으로 채우고, Inf 값을 가진 행을 제거
+# Fill any remaining NaNs with 0 and drop rows containing inf
 final_features_df = final_features_df.fillna(0).astype(np.float64)
 final_features_df = final_features_df[np.isfinite(final_features_df).all(axis=1)]
 
-# 메모리 효율성 및 속도 향상을 위해 희소 행렬(Sparse Matrix)로 변환 (csr_matrix 사용)
+# Convert to a sparse matrix for efficiency
 features_sparse = csr_matrix(final_features_df.values)
 
 try:
-    # 코사인 유사도 계산: 두 벡터(아이템의 피처) 간의 각도 코사인 값을 측정하여 유사도 정의
+    # Cosine similarity between every pair of item vectors
     item_similarity_df = pd.DataFrame(
         cosine_similarity(features_sparse),
         index=final_features_df.index,
         columns=final_features_df.index
     )
-    print(f" CBF 유사도 행렬 생성 완료 ({item_similarity_df.shape})")
+    print(f"CBF similarity matrix built ({item_similarity_df.shape})")
 except MemoryError:
-    print(" 메모리 부족으로 유사도 행렬 생성 실패.")
+    print("Failed to build similarity matrix: out of memory.")
 except Exception as e:
-    print(f" 유사도 계산 실패): {e}")
+    print(f"Similarity calculation failed: {e}")
     item_similarity_df = pd.DataFrame()
 
 # 3. Helper Functions
 def calculate_ndcg_at_k(recs, truth, k):
-    """Normalized Discounted Cumulative Gain (NDCG) @ K 계산"""
-    # NDCG는 추천 목록의 순서까지 고려하여 랭킹 정확도를 측정하는 지표
+    """Compute NDCG@K."""
+    # NDCG rewards relevant items that appear near the top of the list
     dcg = 0.0
     for i, item in enumerate(recs[:k]):
-        # 관련성(relevance)은 추천된 항목이 Ground Truth에 있으면 1.0, 아니면 0.0
+        # Relevance is 1 when the item is in the ground truth set
         relevance = 1.0 if item in truth else 0.0
-        # DCG 계산: 관련성을 순위 디스카운트(log2(i+2))로 나누어 합산
+        # Divide by log discount to penalize lower ranks
         dcg += relevance / np.log2(i + 2)
     n_relevant = len(truth)
     if n_relevant == 0:
         return 0.0
     idcg = 0.0
-    # IDCG 계산: 최적의 순서일 때의 DCG 값 (정규화 기준)
+    # Ideal DCG (perfectly ordered list)
     for i in range(min(k, n_relevant)):
         idcg += 1.0 / np.log2(i + 2)
     if idcg == 0.0:
         return 0.0
-    # NDCG는 DCG를 IDCG로 정규화한 값 (0과 1 사이)
+    # Normalize DCG by IDCG (0..1)
     return dcg / idcg
 
 def predict_cf(user_id, item_id):
-    """SVD 모델을 사용하여 예측 평점 반환"""
-    # Surprise SVD 모델을 사용하여 특정 유저(user_id)가 특정 아이템(item_id)에 줄 평점을 예측
+    """Predict a rating with the trained SVD model."""
     prediction = model_svd.predict(str(user_id), str(item_id))
     return prediction.est
 
 def get_content_based_recommendations(beer_norm_name, top_n=1000):
-    """특정 맥주와 유사한 맥주 Top-N 반환 (CBF)"""
+    """Return the Top-N beers closest to the given beer (CBF)."""
     if item_similarity_df.empty or beer_norm_name not in item_similarity_df.columns:
         return pd.Series(dtype='float64')
     if beer_norm_name not in item_similarity_df.index:
         return pd.Series(dtype='float64')
 
-    # 해당 맥주와 다른 모든 맥주 간의 유사도 점수 추출
+    # Fetch similarity scores against every other beer
     sims = item_similarity_df.loc[beer_norm_name].drop(beer_norm_name, errors='ignore')
-    # 최소 유사도 임계값(MIN_CBF_SIMILARITY) 미만의 항목은 제외
+    # Drop items that fall below the similarity threshold
     sims = sims[sims >= MIN_CBF_SIMILARITY]
-    # 유사도 순으로 정렬하여 Top-N 반환
+    # Sort by similarity descending
     return sims.sort_values(ascending=False).head(top_n)
 
 def get_hybrid_recommendations_for_user(user_id, k):
-    """유저에게 하이브리드 추천 목록 Top-K를 생성"""
+    """Generate a Top-K hybrid list for a user."""
     if item_similarity_df.empty: return []
 
     try:
-        # 유저가 훈련셋에 존재하는지 확인
+        # Ensure the user exists within the training set
         if trainset.to_inner_uid(str(user_id)) not in trainset.all_users():
             return []
     except ValueError:
@@ -196,15 +194,15 @@ def get_hybrid_recommendations_for_user(user_id, k):
 
     user_reviews = train_reviews_df[train_reviews_df['review_profilename'] == user_id]
     user_rated = set(user_reviews['beer_name_norm'])
-    # 유저가 긍정적으로 평가한(RELEVANCE_THRESHOLD 이상) 맥주 목록 추출 (CBF 추천의 시드)
+    # Positive beers (ratings >= threshold) act as seeds
     top_user_beers = user_reviews[user_reviews['review_overall'] >= RELEVANCE_THRESHOLD]['beer_name_norm'].unique()
 
-    # CBF 행렬에 있는 맥주만 필터링
+    # Drop seeds that are missing from the CBF matrix
     top_user_beers = [b for b in top_user_beers if b in item_similarity_df.index]
     if not top_user_beers: return []
 
     candidate_beers = {}
-    # 긍정 평가 맥주 기반으로 유사한 맥주를 CBF 방식으로 찾고, 가장 높은 유사도를 후보 점수로 저장
+    # Collect candidate beers via CBF and keep the max similarity score
     for beer_norm in top_user_beers:
         similar_beers = get_content_based_recommendations(beer_norm, top_n=k * 10)
         for beer_name, score in similar_beers.items():
@@ -212,31 +210,30 @@ def get_hybrid_recommendations_for_user(user_id, k):
 
     all_scores = []
     for beer_norm, cbf_score in candidate_beers.items():
-        if beer_norm in user_rated: continue # 이미 평가한 맥주는 추천에서 제외
+        if beer_norm in user_rated: continue  # skip already-rated beers
 
-        # CF 예측 평점 계산 (Surprise SVD 모델 사용)
+        # Predict CF rating
         cf_score = predict_cf(user_id, beer_norm)
 
-        # CF 예측 점수가 4.0 미만인 경우는 유효하지 않다고 간주하여 필터링 (품질 필터링)
+        # Skip if CF score is low
         if cf_score < 4.0:
             continue
 
         if cbf_score < MIN_CBF_SIMILARITY: continue
 
-        # Hybrid Score 계산: (CF_Score ^ W_CF) * (CBF_Score ^ W_CBF)
-        # CF와 CBF 점수에 가중치를 적용하여 최종 하이브리드 추천 점수를 산출
+        # Hybrid score = (CF^W_CF) * (CBF^W_CBF)
         hybrid_score = (cf_score ** W_CF) * (cbf_score ** W_CBF)
         all_scores.append((beer_norm, hybrid_score))
 
     hybrid_recs = sorted(all_scores, key=lambda x: x[1], reverse=True)[:k]
     return [beer_name for beer_name, _ in hybrid_recs]
 
-# 4. 정량적 평가 (RMSE, Precision, Recall, NDCG)
-print("\n 4. RMSE 계산 중 (Surprise Test Set 사용)")
+# 4. Quantitative metrics (RMSE, Precision, Recall, NDCG)
+print("\n 4) Evaluating RMSE with the Surprise test split")
 test_set_df = test_reviews_df[['review_profilename', 'beer_name_norm', 'review_overall']].copy()
 
 def get_surprise_testset(df, trainset):
-    """평가 대상 유저/아이템이 훈련셋에 있는지 확인하여 유효한 Surprise 테스트셋 생성"""
+    """Keep only (user, item) pairs that exist in the trainset."""
     test_set = []
     valid_uids = set(trainset.to_raw_uid(i) for i in trainset.all_users())
     valid_iids = set(trainset.to_raw_iid(i) for i in trainset.all_items())
@@ -246,7 +243,7 @@ def get_surprise_testset(df, trainset):
         item = str(row['beer_name_norm'])
         rating = row['review_overall']
 
-        # 훈련셋에 있는 사용자(UID)와 아이템(IID)만 포함하여 평가 일관성 유지
+        # Skip pairs that never appeared in training
         if user in valid_uids and item in valid_iids:
             test_set.append((user, item, rating))
     return test_set
@@ -255,46 +252,41 @@ testset_surprise = get_surprise_testset(test_set_df, trainset)
 
 rmse = None
 if testset_surprise:
-    # SVD 모델의 예측 평점 계산
     predictions = model_svd.test(testset_surprise)
-    # RMSE (제곱 평균 제곱근 오차) 계산: 예측 정확도의 주 지표
     rmse = accuracy.rmse(predictions, verbose=False)
-    print(f" RMSE: {rmse:.4f} (총 {len(predictions)}건 사용)")
+    print(f" RMSE: {rmse:.4f} (n={len(predictions)})")
 else:
-    print(" RMSE 계산 불가: 테스트셋 유저/아이템 불일치 (CF 모델 평가 실패)")
+    print(" Unable to compute RMSE (no overlapping users/items).")
 
-print(f"\n 5. Precision@{K}, Recall@{K}, NDCG@{K} 계산 중")
-
-# 훈련셋에 기록이 있는 유저 중 테스트셋에도 있는 유저만 대상으로 평가
+print(f"\n 5) Precision@{K}, Recall@{K}, NDCG@{K}")
 test_users_in_train = set(test_reviews_df['review_profilename']).intersection(set(train_reviews_df['review_profilename']))
 test_users_sample = list(test_users_in_train)
 
-# Ground Truth 생성: 테스트셋에서 4.0점 이상 준 맥주 목록
+# Build ground truth from test-set ratings >= threshold
 ground_truth_map = test_reviews_df[test_reviews_df['review_overall'] >= RELEVANCE_THRESHOLD].groupby('review_profilename')['beer_name_norm'].apply(set)
 
 precisions, recalls, ndcgs = [], [], []
 for user_id in test_users_sample:
     truth = ground_truth_map.get(user_id, set())
-    if not truth: continue # Ground Truth가 없으면 평가 스킵
+    if not truth:
+        continue  # skip users without relevant items
 
-    # Hybrid 추천 목록 Top-K 생성
+    # Generate Top-K hybrid list
     recs_list = get_hybrid_recommendations_for_user(user_id, K)
 
-    if not recs_list: continue # 추천 목록 생성 실패 시 스킵
+    if not recs_list:
+        continue  # skip if we could not build a list
 
     recs_set = set(recs_list)
 
     hits = len(truth.intersection(recs_set))
 
     if len(truth) > 0:
-        # Precision@K: 추천 목록 중 관련 항목의 비율
         precisions.append(hits / K)
-        # Recall@K: 관련 항목 중 추천된 항목의 비율
         recalls.append(hits / len(truth))
-        # NDCG@K: 순서 가중치를 고려한 랭킹 정확도
         ndcgs.append(calculate_ndcg_at_k(recs_list, truth, K))
 
-print(f" 평가 대상 유저 수: {len(test_users_sample)}명")
+print(f"Evaluated users: {len(test_users_sample)}")
 
 mean_precision = float(np.mean(precisions)) if precisions else None
 mean_recall = float(np.mean(recalls)) if recalls else None
@@ -306,24 +298,24 @@ if precisions:
     print(f" Recall@{K}: {mean_recall:.4f}")
     print(f" NDCG@{K}: {mean_ndcg:.4f}")
 else:
-    print(" P@K, R@K, NDCG@K 계산 불가 (평가 유저/추천 목록 부족)")
+    print(" Not enough users/lists to compute P/R/NDCG.")
 
-# 5. 정성적 평가 (IPA 페르소나)
+# 5. Qualitative check (IPA persona)
 
-print(f"\n 6. 정성적 평가 (IPA 애호가)")
-# 'beer_style' 컬럼을 사용하여 IPA 애호가 찾기
+print(f"\n 6) IPA persona analysis")
+# Use beer_style to find IPA lovers
 ipa_reviews = train_reviews_df[train_reviews_df['beer_style'].str.contains("IPA", case=False, na=False)]
 ipa_lover_counts = ipa_reviews.groupby('review_profilename').size()
 ipa_lover_ratings = ipa_reviews.groupby('review_profilename')['review_overall'].mean()
-# 5개 이상 리뷰 작성 및 평균 평점 4.5점 이상인 IPA 애호가 선택
+# Pick users with ≥5 IPA reviews and mean IPA rating ≥4.5
 persona_candidates = ipa_lover_counts[ipa_lover_counts >= 5].index.intersection(ipa_lover_ratings[ipa_lover_ratings >= 4.5].index)
 persona_summary = None
 
 if not persona_candidates.empty:
     PERSONA_USER = persona_candidates[0]
-    print(f" 페르소나 선정: '{PERSONA_USER}'")
+    print(f" Persona user: '{PERSONA_USER}'")
 
-    # 레시피 DB에 있는 이름 정보를 가져오기 위한 필터링
+    # Align with recipes data
     recs_map = recipes_df.drop_duplicates(subset=['beer_name_norm']).set_index('beer_name_norm')
 
     persona_recs = get_hybrid_recommendations_for_user(PERSONA_USER, k=5)
@@ -332,7 +324,7 @@ if not persona_candidates.empty:
         "recommendations": persona_recs,
     }
 
-    print(f"\n[Top 5 추천 맥주 목록 (Hybrid)]")
+    print(f"\n[Top 5 hybrid recommendations]")
     if persona_recs:
         recs_in_recipes_df = recs_map.reindex(persona_recs).reset_index().dropna(subset=['Name'])
 
@@ -344,11 +336,11 @@ if not persona_candidates.empty:
 
             print(recs_to_print)
         else:
-            print(" 추천된 맥주가 레시피 DB에 존재하지 않음.")
+            print(" Recommended beers not found in recipe table.")
     else:
-        print(" 추천 생성 실패 (CBF 유사도 부족 또는 CF 평점 낮음).")
+        print(" Failed to generate persona recommendations (CBF or CF score too low).")
 
-    # 선호 맥주와 추천 맥주의 평균 피처 비교
+    # Compare average features of liked vs recommended beers
     liked_beers = train_reviews_df[(train_reviews_df['review_profilename'] == PERSONA_USER) & (train_reviews_df['review_overall'] >= RELEVANCE_THRESHOLD)]['beer_name_norm']
     liked_beers_in_recipes = liked_beers[liked_beers.isin(recs_map.index)]
     recs_in_recipes_names = [r for r in persona_recs if r in recs_map.index]
@@ -356,7 +348,7 @@ if not persona_candidates.empty:
     if not liked_beers_in_recipes.empty and recs_in_recipes_names:
         numerical_features_all = [col for col in ['ABV', 'IBU', 'OG', 'FG', 'Color'] if col in recs_map.columns]
 
-        # NaN 값을 평균으로 채워 통계 계산을 가능하게 합니다.
+        # Fill NaNs with column means so we can compare
         temp_map = recs_map.copy()
         for col in numerical_features_all:
             temp_map[col] = temp_map[col].fillna(temp_map[col].mean())
@@ -366,12 +358,12 @@ if not persona_candidates.empty:
 
         comparison_df = pd.DataFrame({"Liked (Train set)": liked_stats, "Recommended (Hybrid)": recs_stats})
         comparison_df = comparison_df.T[['ABV', 'IBU', 'Color']].round(2)
-        print("\n[레시피 교차 검증 (평균 ABV/IBU/Color)]")
+        print("\n[Recipe cross-check: mean ABV/IBU/Color]")
         print(comparison_df)
     else:
-        print("\n [레시피 교차 검증 불가] 데이터 부족.")
+        print("\n [Not enough data for recipe comparison].")
 else:
-    print(" IPA 애호가 페르소나를 찾지 못했습니다.")
+    print(" Could not find an IPA persona user.")
 
 metrics_payload = {
     "generated_at": datetime.utcnow().isoformat() + "Z",
@@ -387,5 +379,5 @@ metrics_payload = {
 EVAL_METRICS_JSON.write_text(
     json.dumps(metrics_payload, indent=2, ensure_ascii=False), encoding="utf-8"
 )
-print(f"\n평가 지표 JSON 저장 완료: {EVAL_METRICS_JSON}")
-print("\n 평가 스크립트 종료")
+print(f"\nSaved evaluation metrics JSON: {EVAL_METRICS_JSON}")
+print("\n Evaluation script finished")

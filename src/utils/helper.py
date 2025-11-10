@@ -1,13 +1,10 @@
 import pandas as pd
-import re, math, os
-from pathlib import Path
-
-import kagglehub
-from kagglehub.datasets import KaggleDatasetAdapter
+import re
+import math
 
 
 def read_csv_with_fallback(path, **kwargs):
-    """여러 인코딩/파서를 시도하며 CSV 읽기"""
+    """Try several encodings/engines until the CSV loads."""
     encodings = ["utf-8", "utf-8-sig", "cp949", "euc-kr", "latin1", "cp1252"]
 
     for enc in encodings:
@@ -17,7 +14,11 @@ def read_csv_with_fallback(path, **kwargs):
             continue
 
     return pd.read_csv(
-        path, encoding="utf-8", engine="python", on_bad_lines="skip", **kwargs
+        path,
+        encoding="utf-8",
+        engine="python",
+        on_bad_lines="skip",
+        **kwargs,
     )
 
 
@@ -40,7 +41,7 @@ def safe_float(x):
 
 
 def map_first_existing(df, candidates_dict):
-    """가능한 컬럼명 후보들 중 데이터프레임에 존재하는 첫 컬럼으로 매핑"""
+    """Map each canonical column to the first matching source column."""
     mapping = {}
     for new, cands in candidates_dict.items():
         for c in cands:

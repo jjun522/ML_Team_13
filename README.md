@@ -1,25 +1,20 @@
 # Beer Recommendation System (Team 13)
 
-## 🍺 프로젝트 개요
-이 프로젝트는 BeerAdvocate의 사용자 리뷰 데이터를 기반으로 개인의 취향을 학습하여 새로운 맥주를 추천하는 시스템을 설계하는 것을 목표로 합니다.
-추가적으로 Brewer’s Friend의 레시피 데이터를 활용하여 추천된 맥주가 사용자가 선호하는 맥주의 내재적 특성(ABV, IBU, 재료 등)과 얼마나 일치하는지 검증하고 분석합니다.
+## Project Overview
+We train a beer recommender on the BeerAdvocate dataset so that each user receives beers that match their taste profile. The model is purely data‑driven: it learns from user–beer interactions, review scores, and basic metadata. The Brewer’s Friend recipe dataset is used later for validation and analysis (for example, checking whether recommended beers share similar ABV or IBU with what the user liked).
 
-## 📂 데이터셋
-* **Beer Reviews (BeerAdvocate)**: 약 150만 개의 사용자 리뷰와 66,000여 개의 맥주 데이터. 평점(맛, 향, 외관 등) 포함.
-* **Brewer's Friend Beer Recipes**: 75,000개 이상의 홈브루잉 레시피 데이터. ABV, IBU, 재료 정보 포함.
+## Datasets
+- **BeerAdvocate Reviews (`beer_reviews.csv`)** – ~1.5M reviews across ~66K beers with per‑aspect scores and metadata. Used to build the collaborative and hybrid models.
+- **Brewer’s Friend Recipes (`recipeData.csv`)** – ~75K homebrew recipes with style, method, and analytic stats (ABV, IBU, OG, FG, Color, etc.). Used for content features, persona analysis, and cross‑checks.
 
-## 🛠 모델링 접근 방식
-### 1. 협업 필터링 (Model-Based Collaborative Filtering)
-* 사용자-맥주 평점 행렬을 기반으로 작동합니다.
-* SVD(특이값 분해)와 같은 행렬 분해(Matrix Factorization) 기법을 사용하여 사용자의 잠재적 선호 패턴을 학습하고 평점을 예측합니다.
+## Modeling Strategy
+1. **Model-based Collaborative Filtering**  
+   Matrix Factorization (SVD from `surprise`) learns user and beer latent factors from the user–beer rating matrix. The model predicts ratings for unseen beers.
+2. **Content-based Filtering**  
+   Numerical recipe attributes (ABV, IBU, OG, FG, Color) plus one-hot style features are scaled and compared with cosine similarity to surface beers with similar intrinsic properties.
+3. **Hybrid Filtering**  
+   CF predictions and CBF similarities are combined with simple weights so we can rank beers that are both well matched to the user history and close in content space.
 
-### 2. 콘텐츠 기반 필터링 (Content-Based Filtering)
-* 맥주의 내재적 속성(ABV, IBU, 재료 등)을 활용합니다.
-* 사용자가 과거에 높게 평가한 맥주와 속성이 유사한 다른 맥주를 추천합니다.
-
-### 3. 하이브리드 필터링 (Hybrid Filtering)
-* 협업 필터링의 예측 점수와 콘텐츠 기반 필터링의 유사도 점수에 가중치를 부여하여 결합한 최종 추천 목록을 생성합니다.
-
-## 📈 평가 방법
-* **정량적 평가**: RMSE(Root Mean Squared Error)를 주 지표로 사용하여 예측 정확도를 측정합니다.
-* **정성적 평가**: 대표 페르소나(예: IPA 애호가)를 설정하여 상위 추천 항목이 실제 취향과 논리적으로 일치하는지 검증합니다.
+## Evaluation
+- **Quantitative**: chronological 80/20 split of BeerAdvocate data. Metrics include RMSE, Precision@K, Recall@K, and NDCG@K (stored in `src/result/evaluation_metrics.json`).
+- **Qualitative**: persona-style inspections (e.g., “IPA lover”) plus Brewer’s Friend cross-checks to confirm recommended beers share realistic brewing traits.

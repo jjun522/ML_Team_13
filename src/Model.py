@@ -20,7 +20,7 @@ from utils.paths import (
 )
 
 # ---
-# 0. 데이터 로드
+# 0. Load data
 # ---
 ensure_dirs()
 
@@ -28,14 +28,14 @@ try:
     reviews_df = pd.read_csv(OUT_REVIEWS_CLEAN, low_memory=False)
     recipes_df = pd.read_csv(OUT_RECIPES_CLEAN, low_memory=False)
 except FileNotFoundError:
-    print("오류: CSV 파일을 찾을 수 없습니다.")
+    print("Error: CSV file not found.")
     exit()
 
 if 'review_time' not in reviews_df.columns:
-    print("오류: 'review_time' 컬럼이 없어 분할이 불가능합니다.")
+    print("Error: 'review_time' column is required for the split.")
     exit()
 
-print("\n--- 0. 시간순 데이터 분할 시작 ---")
+print("\n--- 0. Chronological split ---")
 reviews_df['review_time'] = pd.to_datetime(reviews_df['review_time'], unit='s')
 reviews_df = reviews_df.sort_values(by='review_time')
 
@@ -43,18 +43,18 @@ split_point = int(len(reviews_df) * 0.8)
 train_reviews_df = reviews_df.iloc[:split_point]
 test_reviews_df = reviews_df.iloc[split_point:]
 
-print(f"훈련셋 (80%): {len(train_reviews_df)}개")
-print(f"테스트셋 (20%): {len(test_reviews_df)}개")
+print(f"Train set (80%): {len(train_reviews_df)} rows")
+print(f"Test set (20%): {len(test_reviews_df)} rows")
 
 train_reviews_df.to_csv(TRAIN_REVIEWS_CSV, index=False)
 test_reviews_df.to_csv(TEST_REVIEWS_CSV, index=False)
-print(f"-> {TRAIN_REVIEWS_CSV}, {TEST_REVIEWS_CSV} 파일 저장 완료.")
+print(f"Saved split to {TRAIN_REVIEWS_CSV} and {TEST_REVIEWS_CSV}")
 
 if 'review_time' not in reviews_df.columns:
-    print("오류: 'review_time' 컬럼이 없어 분할이 불가능합니다.")
+    print("Error: 'review_time' column is required for the split.")
     exit()
 
-print("\n--- 0. 시간순 데이터 분할 시작 ---")
+print("\n--- 0. Chronological split ---")
 reviews_df['review_time'] = pd.to_datetime(reviews_df['review_time'], unit='s')
 reviews_df = reviews_df.sort_values(by='review_time')
 
@@ -62,18 +62,18 @@ split_point = int(len(reviews_df) * 0.8)
 train_reviews_df = reviews_df.iloc[:split_point]
 test_reviews_df = reviews_df.iloc[split_point:]
 
-print(f"훈련셋 (80%): {len(train_reviews_df)}개")
-print(f"테스트셋 (20%): {len(test_reviews_df)}개")
+print(f"Train set (80%): {len(train_reviews_df)} rows")
+print(f"Test set (20%): {len(test_reviews_df)} rows")
 
 train_reviews_df.to_csv(TRAIN_REVIEWS_CSV, index=False)
 test_reviews_df.to_csv(TEST_REVIEWS_CSV, index=False)
-print(f"-> {TRAIN_REVIEWS_CSV}, {TEST_REVIEWS_CSV} 파일 저장 완료.")
+print(f"Saved split to {TRAIN_REVIEWS_CSV} and {TEST_REVIEWS_CSV}")
 
 # ---
-# 1. 모델 기반 협업 필터링 (CF)
-# [scikit-surprise] SVD 모델 생성하기  https://westlife0615.tistory.com/858
+# 1. Model-based collaborative filtering (CF)
+# [scikit-surprise] SVD reference  https://westlife0615.tistory.com/858
 # ---
-print("\n--- 1. 협업 필터링(CF) 모델 학습 ---")
+print("\n--- 1. Train collaborative filtering (CF) model ---")
 reader = Reader(rating_scale=(1, 5))
 full_train_data = Dataset.load_from_df(train_reviews_df[['review_profilename', 'beer_name_norm', 'review_overall']], reader)
 full_trainset = full_train_data.build_full_trainset()
@@ -81,28 +81,28 @@ algo_svd = SVD(n_factors=50, n_epochs=20, random_state=42)
 algo_svd.fit(full_trainset)
 
 # ---
-# 2. 콘텐츠 기반 필터링 (CBF)
+# 2. Content-based filtering (CBF)
 # ---
-print("\n--- 2. 콘텐츠 기반 필터링(CBF) 모델 준비 ---")
+print("\n--- 2. Prepare content-based (CBF) features ---")
 
 SAMPLING_SIZE = 20000
 if len(recipes_df) > SAMPLING_SIZE:
-    print(f"원본 레시피 {len(recipes_df)}개")
+    print(f"Original recipes: {len(recipes_df)} rows")
     recipes_df = recipes_df.sample(n=SAMPLING_SIZE, random_state=42)
 
 recipes_features = recipes_df.drop_duplicates(subset=['beer_name_norm']).set_index('beer_name_norm')
 
-# 피처 정의
+# Feature definitions
 numerical_features = ['ABV', 'IBU', 'OG', 'FG', 'Color']
 
 for col in numerical_features:
     if col in recipes_features.columns:
         recipes_features[col] = recipes_features[col].fillna(recipes_features[col].mean())
     else:
-        print(f"경고: '{col}' 컬럼이 recipes_df에 없습니다. 해당 컬럼을 제외합니다.")
+        print(f"Warning: column '{col}' not found in recipes_df. Dropping it.")
         numerical_features.remove(col)
 
-# 수치형 피처 스케일링
+# Scale numeric features
 scaler = MinMaxScaler()
 features_scaled_df = pd.DataFrame(
     scaler.fit_transform(recipes_features[numerical_features]),
@@ -110,22 +110,22 @@ features_scaled_df = pd.DataFrame(
     index=recipes_features.index
 )
 
-# 범주형 피처 원-핫 인코딩
+# One-hot encode categorical features
 if 'Style' in recipes_features.columns:
     style_dummies = pd.get_dummies(recipes_features['Style'], prefix='Style')
     final_features_df = pd.concat([features_scaled_df, style_dummies], axis=1)
-    print(f"CBF 특성 생성 완료)")
+    print("CBF feature matrix ready.")
 else:
-    print("경고: 'Style' 컬럼이 없습니다. 수치형 특성만 사용합니다.")
+    print("Warning: 'Style' column is missing. Using numeric features only.")
     final_features_df = features_scaled_df
 
-print("코사인 유사도 계산 시작...")
+print("Starting cosine similarity computation...")
 item_similarity_df = pd.DataFrame(
     cosine_similarity(final_features_df),
     index=final_features_df.index,
     columns=final_features_df.index
 )
-print("코사인 유사도 계산 완료.")
+print("Cosine similarity ready.")
 
 
 def get_content_based_recommendations(beer_norm_name, top_n=5):
@@ -134,7 +134,7 @@ def get_content_based_recommendations(beer_norm_name, top_n=5):
 
     similar_scores = item_similarity_df[beer_norm_name]
 
-    # 복제 레시피 필터링
+    # Drop near-perfect matches (self similarity)
     similar_scores = similar_scores[similar_scores < 0.99]
 
     similar_scores = similar_scores.drop(beer_norm_name, errors='ignore').sort_values(ascending=False)
@@ -142,24 +142,24 @@ def get_content_based_recommendations(beer_norm_name, top_n=5):
     return similar_scores.head(top_n)
 
 
-print("CBF 모델 준비 완료.")
+print("CBF model prep complete.")
 
 # ---
-# 3. 하이브리드 필터링 (Hybrid) - 3가지 추천 동시 생성
+# 3. Hybrid filtering (CF + CBF)
 # ---
-print("\n--- 3. 3가지 추천 목록 생성 (CF, CBF, Hybrid) ---")
+print("\n--- 3. Build recommendation lists (CF, CBF, Hybrid) ---")
 
-# 가중치 (조절 가능)
-W_CF = 1.0  # 협업 필터링 가중치
-W_CBF = 0.5  # 콘텐츠 기반 가중치
+# Weights (tune as needed)
+W_CF = 1.0  # CF weight
+W_CBF = 0.5  # CBF weight
 
 
 def get_all_recommendations(user_id, top_n=10):
     """
-    한 명의 유저에 대해 3가지 추천 목록을 모두 반환
-    1. CF 기반 추천
-    2. CBF 기반 추천
-    3. Hybrid (CF * CBF) 추천
+    Return three recommendation lists for a user:
+      1. CF list
+      2. CBF list
+      3. Hybrid list (CF * CBF)
     """
 
     user_reviews = train_reviews_df[train_reviews_df['review_profilename'] == user_id]
@@ -167,7 +167,7 @@ def get_all_recommendations(user_id, top_n=10):
     top_user_beers = user_reviews[user_reviews['review_overall'] >= 4.0]['beer_name_norm'].unique()
 
     if len(top_user_beers) == 0:
-        print(f"'{user_id}'님은 평점 4.0 이상인 맥주가 없습니다. (콜드 스타트)")
+        print(f"User '{user_id}' has no beers rated ≥ 4.0 (cold start).")
         return None, None, None
 
     candidate_beers = {}
@@ -183,7 +183,7 @@ def get_all_recommendations(user_id, top_n=10):
 
         cf_score = algo_svd.predict(uid=user_id, iid=beer_norm).est
 
-        # 가중치 계산
+        # Weighted hybrid score
         hybrid_score = (cf_score ** W_CF) * (cbf_max_score ** W_CBF)
 
         all_scores.append((beer_norm, cf_score, cbf_max_score, hybrid_score))
@@ -196,9 +196,9 @@ def get_all_recommendations(user_id, top_n=10):
 
 
 # ---
-# 4. 최종 추천 예시
+# 4. Example recommendation output
 # ---
-print("\n--- 테스트용 Top 5 리뷰어 ---")
+print("\n--- Top 5 reviewers (for inspection) ---")
 top_reviewers = train_reviews_df['review_profilename'].value_counts().head(5)
 print(top_reviewers)
 print("------------------------------")
@@ -206,25 +206,25 @@ print("------------------------------")
 TEST_USER = 'stakem'
 cf_recs, cbf_recs, hybrid_recs = get_all_recommendations(TEST_USER, top_n=10)
 
-print(f"\n--- [최종 추천 결과 (for {TEST_USER})] ---")
+print(f"\n--- [Sample recommendations for {TEST_USER}] ---")
 
 if cf_recs:
-    # 1. 개인 취향 기반
-    print("\n[추천 1: 협업 필터링 (CF) - 당신의 취향과 유사한 추천]")
+    # CF list
+    print("\n[Feed 1: collaborative filtering]")
     for beer, cf, cbf, hy in cf_recs:
-        print(f"  - {beer} (예상CF점수: {cf:.2f})")
+        print(f"  - {beer} (CF score: {cf:.2f})")
 
-    # 2. 콘텐츠 유사도 기반
-    print("\n[추천 2: 콘텐츠 기반 (CBF) - 당신이 좋아한 맥주와 '성분'이 유사한 추천]")
+    # CBF list
+    print("\n[Feed 2: content-based filtering]")
     for beer, cf, cbf, hy in cbf_recs:
-        print(f"  - {beer} (유사도(CBF): {cbf:.2f})")
+        print(f"  - {beer} (CBF similarity: {cbf:.2f})")
 
-    # 3. Hybrid 추천
-    print("\n[추천 3: 하이브리드 (Hybrid) - CF와 CBF를 모두 고려한 추천]")
+    # Hybrid list
+    print("\n[Feed 3: hybrid (CF × CBF)]")
     for beer, cf, cbf, hy in hybrid_recs:
-        print(f"  - {beer} (최종점수: {hy:.2f} | CF {cf:.2f}, CBF {cbf:.2f})")
+        print(f"  - {beer} (Hybrid: {hy:.2f} | CF {cf:.2f}, CBF {cbf:.2f})")
 else:
-    print(f"'{TEST_USER}'님에 대한 추천 목록을 생성할 수 없습니다.")
+    print(f"Could not generate recommendations for '{TEST_USER}'.")
 
 def _format_recommendations(recs):
     if not recs:

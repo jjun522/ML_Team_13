@@ -37,33 +37,33 @@ from difflib import get_close_matches
 ensure_dirs()
 
 # =============================
-# Config (경로/옵션/임계값)
+# Config (paths/options/thresholds)
 # =============================
 
-# 수치 필터 범위(필요 시 조정)
+# Numeric filter ranges (adjust if needed)
 ABV_MIN, ABV_MAX = 0.0, 20.0
 IBU_MIN, IBU_MAX = 0.0, 150.0
 OG_MIN, OG_MAX = 1.000, 1.150
 FG_MIN, FG_MAX = 0.980, 1.060
 COLOR_MIN, COLOR_MAX = 0.0, 60.0
 
-# 문자열 정규화 관련
+# Text normalization
 MIN_NAME_LEN = 3
 
-# 퍼지 매칭 옵션(기본 False → 느림 방지)
+# Optional fuzzy matching (disabled by default to keep runtime low)
 USE_FUZZY = False
-FUZZY_CUTOFF = 0.92  # 0~1, 높을수록 보수적
-MAX_FUZZY_CAND = 1  # 후보 수 (1 권장)
-# 후보 풀 제한: 같은 스타일 우선 + 같은 첫 글자 동일 시도
+FUZZY_CUTOFF = 0.92  # 0~1, higher = stricter
+MAX_FUZZY_CAND = 1  # number of candidates (1 is recommended)
+# Limit candidate pool: favor same style and same first letter when possible
 LIMIT_TO_SAME_FIRST_LETTER = True
 
-# 대용량일 때 퍼지 매칭 속도/안정성 튜닝
-MAX_REVIEWS_FOR_FUZZY = 50_000  # 리뷰 고유 맥주명 상한 (넘으면 상위 N개만)
-MAX_RECIPES_FOR_POOL = 50_000  # 레시피 고유 맥주명 상한 (넘으면 샘플링)
+# Fuzzy matching guards for large datasets
+MAX_REVIEWS_FOR_FUZZY = 50_000  # cap on unique beers from reviews
+MAX_RECIPES_FOR_POOL = 50_000  # cap on unique beers from recipes
 
 
 # =============================
-# 로드
+# Load data
 # =============================
 t0 = time.time()
 reviews = read_csv_with_fallback(RAW_REVIEWS_CSV)
@@ -72,7 +72,7 @@ recipes = read_csv_with_fallback(RAW_RECIPES_CSV)
 orig_counts = {"reviews_rows": len(reviews), "recipes_rows": len(recipes)}
 
 # =============================
-# 컬럼 표준화(유연 매핑)
+# Column standardization (flexible mapping)
 # =============================
 rev_colmap_candidates = {
     "beer_name": ["beer_name", "Beer Name", "beer"],
@@ -100,7 +100,7 @@ rec_colmap_candidates = {
     "IBU": ["IBU"],
     "OG": ["OG", "OriginalGravity"],
     "FG": ["FG", "FinalGravity"],
-    "Color": ["Color", "SRM"],  # Color 컬럼 후보 추가
+    "Color": ["Color", "SRM"],  # recognize SRM as color
     "BrewMethod": ["BrewMethod", "Method"],
 }
 rec_map = map_first_existing(recipes, rec_colmap_candidates)
@@ -109,9 +109,9 @@ recipes = recipes.rename(columns={v: k for k, v in rec_map.items()})[
 ]
 
 # =============================
-# 기본 클리닝
+# Basic cleaning
 # =============================
-# 이름 정규화 + 너무 짧은 이름 제거
+# Normalize names and drop very short ones
 reviews["beer_name_norm"] = reviews["beer_name"].apply(normalize_name)
 recipes["beer_name_norm"] = recipes["Name"].apply(normalize_name)
 
@@ -123,7 +123,7 @@ rec_before = len(recipes)
 recipes = recipes[recipes["beer_name_norm"].str.len() >= MIN_NAME_LEN].copy()
 rec_dropped_names = rec_before - len(recipes)
 
-# 수치 필터링(있을 때만)
+# Numeric filters (only if present)
 if "beer_abv" in reviews.columns:
     reviews["beer_abv"] = reviews["beer_abv"].apply(safe_float)
     reviews = reviews[
@@ -152,7 +152,7 @@ if "Style" in recipes.columns:
 else:
     print("Warning: 'Style' column not found in recipes. Skipping style filter.")
 
-# 중복 제거
+# Drop duplicates
 key_cols = [
     c
     for c in ["review_profilename", "beer_name_norm", "review_time"]
@@ -167,7 +167,7 @@ dedup_subset = ["beer_name_norm"] + (["Style"] if "Style" in recipes.columns els
 recipes = recipes.drop_duplicates(subset=dedup_subset, keep="first")
 
 # =============================
-# 1) 정확 매칭(exact)
+# 1) Exact matches
 # =============================
 exact = pd.merge(
     reviews[["beer_name", "beer_name_norm", "beer_style"]].drop_duplicates(),
@@ -180,7 +180,7 @@ exact["match_type"] = "exact"
 exact["match_score"] = 1.0
 
 # =============================
-# 2) 퍼지 매칭(fuzzy) — 옵션
+# 2) Optional fuzzy matches
 # =============================
 linkage = exact.rename(columns={"beer_name": "beer_name_rev", "Name": "Name_rec"})[
     [
@@ -195,7 +195,7 @@ linkage = exact.rename(columns={"beer_name": "beer_name_rev", "Name": "Name_rec"
 ]
 
 if USE_FUZZY:
-    # 후보 풀 만들기: 스타일별 인덱스 + 전체 풀
+    # Build candidate pool: per-style index + full pool
     if "Style" in recipes.columns:
         rec_by_style = {}
         for style, sub in recipes.groupby(
@@ -207,15 +207,15 @@ if USE_FUZZY:
 
     all_recipe_names = list(recipes["beer_name_norm"].unique())
 
-    # 대용량 보호: 필요시 샘플링
+    # Protect against huge pools by sampling
     if len(all_recipe_names) > MAX_RECIPES_FOR_POOL:
         all_recipe_names = all_recipe_names[:MAX_RECIPES_FOR_POOL]
 
-    # 아직 매칭 안 된 리뷰측 맥주명
+    # Reviews (normalized names) still unresolved
     unmatched = reviews[["beer_name", "beer_name_norm", "beer_style"]].drop_duplicates()
     unmatched = unmatched[~unmatched["beer_name_norm"].isin(exact["beer_name_norm"])]
 
-    # 대용량 보호: 리뷰 쪽도 상위 N개만 시도 (원하면 조건/정렬 로직에 맞게 교체)
+    # Optional review-side sampling if needed
     if len(unmatched) > MAX_REVIEWS_FOR_FUZZY:
         unmatched = unmatched.head(MAX_REVIEWS_FOR_FUZZY)
 
@@ -227,11 +227,11 @@ if USE_FUZZY:
         style_key = (row.get("beer_style") or "").lower().strip()
         pool = rec_by_style.get(style_key, all_recipe_names)
 
-        # 첫 글자 제한(속도/정확도 향상)
+        # First-letter filter for speed/precision
         if LIMIT_TO_SAME_FIRST_LETTER and len(q) > 0:
             first = q[0]
             pool = [p for p in pool if len(p) > 0 and p[0] == first]
-            if not pool:  # 비면 전체 풀로 fallback
+            if not pool:  # Fall back to the global pool
                 pool = rec_by_style.get(style_key, all_recipe_names)
 
         candidates = get_close_matches(q, pool, n=MAX_FUZZY_CAND, cutoff=FUZZY_CUTOFF)
@@ -250,7 +250,7 @@ if USE_FUZZY:
                             else None
                         ),
                         "match_type": "fuzzy",
-                        "match_score": 0.95,  # difflib의 간단 점수(placeholder)
+                        "match_score": 0.95,  # simple difflib score placeholder
                     }
                 )
 
@@ -258,13 +258,13 @@ if USE_FUZZY:
         fuzzy = pd.DataFrame(fuzzy_rows)
         linkage = pd.concat([linkage, fuzzy], ignore_index=True)
 
-# 중복 제거(동일 조합 1개만)
+# Remove duplicate pairs (keep first)
 linkage = linkage.drop_duplicates(
     subset=["beer_name_norm", "Name_rec", "match_type"], keep="first"
 )
 
 # =============================
-# 저장 + 리포트
+# Save outputs and report
 # =============================
 reviews.to_csv(OUT_REVIEWS_CLEAN, index=False)
 recipes.to_csv(OUT_RECIPES_CLEAN, index=False)

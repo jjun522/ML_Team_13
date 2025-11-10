@@ -23,5 +23,5 @@
     "beer_name_linkage": "E:\\Project\\Gachon\\3-2\\ml\\ML_Team_13\\src\\result\\beer_name_linkage.csv",
     "report": "E:\\Project\\Gachon\\3-2\\ml\\ML_Team_13\\src\\result\\filtering_report.txt"
   },
-  "runtime_sec": 17.33
+  "runtime_sec": 16.24
 }
