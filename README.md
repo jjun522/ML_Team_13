@@ -18,3 +18,6 @@ We train a beer recommender on the BeerAdvocate dataset so that each user receiv
 ## Evaluation
 - **Quantitative**: chronological 80/20 split of BeerAdvocate data. Metrics include RMSE, Precision@K, Recall@K, and NDCG@K (stored in `src/result/evaluation_metrics.json`).
 - **Qualitative**: persona-style inspections (e.g., “IPA lover”) plus Brewer’s Friend cross-checks to confirm recommended beers share realistic brewing traits.
+
+## Web Result Visualization
+- `python -m http.server 8000` to check web page
