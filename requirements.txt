@@ -1,0 +1,7 @@
+# NOTE: use Python 3.10; scikit-surprise wheels are not published for 3.12+ yet.
+numpy==1.26.4
+pandas==2.2.3
+scikit-learn==1.4.2
+scikit-surprise==1.1.4
+kagglehub==0.3.13
+pytest==9.0.0

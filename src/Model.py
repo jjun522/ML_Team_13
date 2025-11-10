@@ -7,19 +7,22 @@ import pandas as pd
 from surprise import SVD, Dataset, Reader
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
+from utils.paths import (
+    OUT_REVIEWS_CLEAN,
+    OUT_RECIPES_CLEAN,
+    TRAIN_REVIEWS_CSV,
+    TEST_REVIEWS_CSV,
+    ensure_dirs,
+)
 
 # ---
 # 0. 데이터 로드
 # ---
-REVIEWS_CLEAN_PATH = "/beer_reviews_clean.csv"
-RECIPES_CLEAN_PATH = "/recipes_clean.csv"
-
-OUT_TRAIN_REVIEWS = "train_reviews.csv"
-OUT_TEST_REVIEWS = "test_reviews.csv"
+ensure_dirs()
 
 try:
-    reviews_df = pd.read_csv(REVIEWS_CLEAN_PATH, low_memory=False)
-    recipes_df = pd.read_csv(RECIPES_CLEAN_PATH, low_memory=False)
+    reviews_df = pd.read_csv(OUT_REVIEWS_CLEAN, low_memory=False)
+    recipes_df = pd.read_csv(OUT_RECIPES_CLEAN, low_memory=False)
 except FileNotFoundError:
     print("오류: CSV 파일을 찾을 수 없습니다.")
     exit()
@@ -39,9 +42,9 @@ test_reviews_df = reviews_df.iloc[split_point:]
 print(f"훈련셋 (80%): {len(train_reviews_df)}개")
 print(f"테스트셋 (20%): {len(test_reviews_df)}개")
 
-train_reviews_df.to_csv(OUT_TRAIN_REVIEWS, index=False)
-test_reviews_df.to_csv(OUT_TEST_REVIEWS, index=False)
-print(f"-> {OUT_TRAIN_REVIEWS}, {OUT_TEST_REVIEWS} 파일 저장 완료.")
+train_reviews_df.to_csv(TRAIN_REVIEWS_CSV, index=False)
+test_reviews_df.to_csv(TEST_REVIEWS_CSV, index=False)
+print(f"-> {TRAIN_REVIEWS_CSV}, {TEST_REVIEWS_CSV} 파일 저장 완료.")
 
 if 'review_time' not in reviews_df.columns:
     print("오류: 'review_time' 컬럼이 없어 분할이 불가능합니다.")
@@ -58,9 +61,9 @@ test_reviews_df = reviews_df.iloc[split_point:]
 print(f"훈련셋 (80%): {len(train_reviews_df)}개")
 print(f"테스트셋 (20%): {len(test_reviews_df)}개")
 
-train_reviews_df.to_csv(OUT_TRAIN_REVIEWS, index=False)
-test_reviews_df.to_csv(OUT_TEST_REVIEWS, index=False)
-print(f"-> {OUT_TRAIN_REVIEWS}, {OUT_TEST_REVIEWS} 파일 저장 완료.")
+train_reviews_df.to_csv(TRAIN_REVIEWS_CSV, index=False)
+test_reviews_df.to_csv(TEST_REVIEWS_CSV, index=False)
+print(f"-> {TRAIN_REVIEWS_CSV}, {TEST_REVIEWS_CSV} 파일 저장 완료.")
 
 # ---
 # 1. 모델 기반 협업 필터링 (CF)
