@@ -1,0 +1,27 @@
+# Data Filtering & Linkage Report
+{
+  "input": {
+    "reviews_rows": 1586614,
+    "recipes_rows": 73861
+  },
+  "after_name_drop": {
+    "reviews_dropped_empty_names": 1764,
+    "recipes_dropped_empty_names": 256
+  },
+  "cleaned": {
+    "reviews_rows": 1559093,
+    "recipes_rows": 58156
+  },
+  "linkage": {
+    "exact_matches": 2608,
+    "fuzzy_matches": 0,
+    "total_linked_pairs": 2608
+  },
+  "paths": {
+    "beer_reviews_clean": "E:\\Project\\Gachon\\3-2\\ml\\ML_Team_13\\src\\result\\beer_reviews_clean.csv",
+    "recipes_clean": "E:\\Project\\Gachon\\3-2\\ml\\ML_Team_13\\src\\result\\recipes_clean.csv",
+    "beer_name_linkage": "E:\\Project\\Gachon\\3-2\\ml\\ML_Team_13\\src\\result\\beer_name_linkage.csv",
+    "report": "E:\\Project\\Gachon\\3-2\\ml\\ML_Team_13\\src\\result\\filtering_report.txt"
+  },
+  "runtime_sec": 17.33
+}
