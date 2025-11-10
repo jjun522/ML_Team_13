@@ -4,6 +4,7 @@ from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 import math
 import json
+from datetime import datetime
 from scipy.sparse import csr_matrix
 # Surprise 라이브러리: 추천 시스템 모델 구축 및 평가에 특화된 파이썬 라이브러리
 from surprise import Dataset, Reader, SVD, accuracy
@@ -12,6 +13,7 @@ from utils.paths import (
     TRAIN_REVIEWS_CSV,
     TEST_REVIEWS_CSV,
     OUT_RECIPES_CLEAN,
+    EVAL_METRICS_JSON,
     ensure_dirs,
 )
 
@@ -294,10 +296,15 @@ for user_id in test_users_sample:
 
 print(f" 평가 대상 유저 수: {len(test_users_sample)}명")
 
+mean_precision = float(np.mean(precisions)) if precisions else None
+mean_recall = float(np.mean(recalls)) if recalls else None
+mean_ndcg = float(np.mean(ndcgs)) if ndcgs else None
+evaluated_users = len(precisions)
+
 if precisions:
-    print(f" Precision@{K}: {np.mean(precisions):.4f}")
-    print(f" Recall@{K}: {np.mean(recalls):.4f}")
-    print(f" NDCG@{K}: {np.mean(ndcgs):.4f}")
+    print(f" Precision@{K}: {mean_precision:.4f}")
+    print(f" Recall@{K}: {mean_recall:.4f}")
+    print(f" NDCG@{K}: {mean_ndcg:.4f}")
 else:
     print(" P@K, R@K, NDCG@K 계산 불가 (평가 유저/추천 목록 부족)")
 
@@ -310,6 +317,7 @@ ipa_lover_counts = ipa_reviews.groupby('review_profilename').size()
 ipa_lover_ratings = ipa_reviews.groupby('review_profilename')['review_overall'].mean()
 # 5개 이상 리뷰 작성 및 평균 평점 4.5점 이상인 IPA 애호가 선택
 persona_candidates = ipa_lover_counts[ipa_lover_counts >= 5].index.intersection(ipa_lover_ratings[ipa_lover_ratings >= 4.5].index)
+persona_summary = None
 
 if not persona_candidates.empty:
     PERSONA_USER = persona_candidates[0]
@@ -319,6 +327,10 @@ if not persona_candidates.empty:
     recs_map = recipes_df.drop_duplicates(subset=['beer_name_norm']).set_index('beer_name_norm')
 
     persona_recs = get_hybrid_recommendations_for_user(PERSONA_USER, k=5)
+    persona_summary = {
+        "user": PERSONA_USER,
+        "recommendations": persona_recs,
+    }
 
     print(f"\n[Top 5 추천 맥주 목록 (Hybrid)]")
     if persona_recs:
@@ -361,4 +373,19 @@ if not persona_candidates.empty:
 else:
     print(" IPA 애호가 페르소나를 찾지 못했습니다.")
 
+metrics_payload = {
+    "generated_at": datetime.utcnow().isoformat() + "Z",
+    "k": K,
+    "rmse": rmse,
+    "precision_at_k": mean_precision,
+    "recall_at_k": mean_recall,
+    "ndcg_at_k": mean_ndcg,
+    "evaluated_users": evaluated_users,
+    "persona": persona_summary,
+}
+
+EVAL_METRICS_JSON.write_text(
+    json.dumps(metrics_payload, indent=2, ensure_ascii=False), encoding="utf-8"
+)
+print(f"\n평가 지표 JSON 저장 완료: {EVAL_METRICS_JSON}")
 print("\n 평가 스크립트 종료")

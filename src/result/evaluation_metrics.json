@@ -1,0 +1,19 @@
+{
+  "generated_at": "2025-11-10T12:40:55.497455Z",
+  "k": 10,
+  "rmse": 0.5527231481425326,
+  "precision_at_k": 0.03265983112183354,
+  "recall_at_k": 0.007850041124365673,
+  "ndcg_at_k": 0.03936245406715041,
+  "evaluated_users": 3316,
+  "persona": {
+    "user": "ASymon13",
+    "recommendations": [
+      "nelson",
+      "mo betta bretta",
+      "anti hero",
+      "sierra nevada pale ale",
+      "kryptonite"
+    ]
+  }
+}

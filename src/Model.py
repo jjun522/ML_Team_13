@@ -3,6 +3,9 @@ Beer Recommendation System Model (Final Version)
 (CF, CBF, Hybrid)
 """
 
+import json
+from datetime import datetime
+
 import pandas as pd
 from surprise import SVD, Dataset, Reader
 from sklearn.metrics.pairwise import cosine_similarity
@@ -12,6 +15,7 @@ from utils.paths import (
     OUT_RECIPES_CLEAN,
     TRAIN_REVIEWS_CSV,
     TEST_REVIEWS_CSV,
+    RECOMMENDATIONS_JSON,
     ensure_dirs,
 )
 
@@ -221,3 +225,33 @@ if cf_recs:
         print(f"  - {beer} (최종점수: {hy:.2f} | CF {cf:.2f}, CBF {cbf:.2f})")
 else:
     print(f"'{TEST_USER}'님에 대한 추천 목록을 생성할 수 없습니다.")
+
+def _format_recommendations(recs):
+    if not recs:
+        return []
+    formatted = []
+    for idx, (beer, cf, cbf, hy) in enumerate(recs, start=1):
+        formatted.append(
+            {
+                "rank": idx,
+                "beer_name": beer,
+                "cf_score": round(float(cf), 4),
+                "cbf_score": round(float(cbf), 4),
+                "hybrid_score": round(float(hy), 4),
+            }
+        )
+    return formatted
+
+
+recommendation_payload = {
+    "user": TEST_USER,
+    "generated_at": datetime.utcnow().isoformat() + "Z",
+    "cf": _format_recommendations(cf_recs),
+    "cbf": _format_recommendations(cbf_recs),
+    "hybrid": _format_recommendations(hybrid_recs),
+}
+
+RECOMMENDATIONS_JSON.write_text(
+    json.dumps(recommendation_payload, indent=2, ensure_ascii=False), encoding="utf-8"
+)
+print(f"\nSaved recommendation JSON: {RECOMMENDATIONS_JSON}")

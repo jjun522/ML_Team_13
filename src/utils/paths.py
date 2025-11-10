@@ -14,6 +14,8 @@ OUT_LINKAGE = RESULTS_DIR / "beer_name_linkage.csv"
 OUT_REPORT = RESULTS_DIR / "filtering_report.txt"
 TRAIN_REVIEWS_CSV = RESULTS_DIR / "train_reviews.csv"
 TEST_REVIEWS_CSV = RESULTS_DIR / "test_reviews.csv"
+RECOMMENDATIONS_JSON = RESULTS_DIR / "recommendations.json"
+EVAL_METRICS_JSON = RESULTS_DIR / "evaluation_metrics.json"
 
 
 def ensure_dirs():

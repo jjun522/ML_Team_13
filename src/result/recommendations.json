@@ -1,0 +1,220 @@
+{
+  "user": "stakem",
+  "generated_at": "2025-11-10T12:37:50.865767Z",
+  "cf": [
+    {
+      "rank": 1,
+      "beer_name": "india brown ale",
+      "cf_score": 4.143,
+      "cbf_score": 0.9881,
+      "hybrid_score": 4.1184
+    },
+    {
+      "rank": 2,
+      "beer_name": "homegrown ipa",
+      "cf_score": 3.8674,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.8479
+    },
+    {
+      "rank": 3,
+      "beer_name": "coconut stout",
+      "cf_score": 3.753,
+      "cbf_score": 0.9893,
+      "hybrid_score": 3.7329
+    },
+    {
+      "rank": 4,
+      "beer_name": "amarillo ale",
+      "cf_score": 3.7314,
+      "cbf_score": 0.9876,
+      "hybrid_score": 3.7082
+    },
+    {
+      "rank": 5,
+      "beer_name": "double rye ipa",
+      "cf_score": 3.6926,
+      "cbf_score": 0.9662,
+      "hybrid_score": 3.6297
+    },
+    {
+      "rank": 6,
+      "beer_name": "house brown ale",
+      "cf_score": 3.6812,
+      "cbf_score": 0.9898,
+      "hybrid_score": 3.6625
+    },
+    {
+      "rank": 7,
+      "beer_name": "dog nut brown ale",
+      "cf_score": 3.6812,
+      "cbf_score": 0.9896,
+      "hybrid_score": 3.662
+    },
+    {
+      "rank": 8,
+      "beer_name": "5 gallon all grain nut brown",
+      "cf_score": 3.6812,
+      "cbf_score": 0.9888,
+      "hybrid_score": 3.6607
+    },
+    {
+      "rank": 9,
+      "beer_name": "brown note ale",
+      "cf_score": 3.6812,
+      "cbf_score": 0.9886,
+      "hybrid_score": 3.6603
+    },
+    {
+      "rank": 10,
+      "beer_name": "nut brown ale 2016 1",
+      "cf_score": 3.6812,
+      "cbf_score": 0.9883,
+      "hybrid_score": 3.6596
+    }
+  ],
+  "cbf": [
+    {
+      "rank": 1,
+      "beer_name": "dogfish head 60 min ipa",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 2,
+      "beer_name": "summit smash",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 3,
+      "beer_name": "galaxy session ipa",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 4,
+      "beer_name": "citra saisoma brett",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 5,
+      "beer_name": "hop tropic pale ale",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 6,
+      "beer_name": "sills loop stout",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 7,
+      "beer_name": "bunk pale ale",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 8,
+      "beer_name": "simple 2 hearted clone",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 9,
+      "beer_name": "80s football game",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 10,
+      "beer_name": "canoe ale",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    }
+  ],
+  "hybrid": [
+    {
+      "rank": 1,
+      "beer_name": "india brown ale",
+      "cf_score": 4.143,
+      "cbf_score": 0.9881,
+      "hybrid_score": 4.1184
+    },
+    {
+      "rank": 2,
+      "beer_name": "homegrown ipa",
+      "cf_score": 3.8674,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.8479
+    },
+    {
+      "rank": 3,
+      "beer_name": "coconut stout",
+      "cf_score": 3.753,
+      "cbf_score": 0.9893,
+      "hybrid_score": 3.7329
+    },
+    {
+      "rank": 4,
+      "beer_name": "amarillo ale",
+      "cf_score": 3.7314,
+      "cbf_score": 0.9876,
+      "hybrid_score": 3.7082
+    },
+    {
+      "rank": 5,
+      "beer_name": "dogfish head 60 min ipa",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 6,
+      "beer_name": "summit smash",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 7,
+      "beer_name": "galaxy session ipa",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 8,
+      "beer_name": "citra saisoma brett",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 9,
+      "beer_name": "hop tropic pale ale",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    },
+    {
+      "rank": 10,
+      "beer_name": "sills loop stout",
+      "cf_score": 3.6812,
+      "cbf_score": 0.99,
+      "hybrid_score": 3.6628
+    }
+  ]
+}

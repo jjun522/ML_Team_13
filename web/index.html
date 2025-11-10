@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Beer Recommendation Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        color: #1f2933;
+        background: #f5f7fa;
+      }
+      body {
+        margin: 0;
+        padding: 2rem;
+        display: flex;
+        justify-content: center;
+      }
+      main {
+        width: min(960px, 100%);
+        background: #fff;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.6rem;
+      }
+      select {
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        border: 1px solid #cbd2d9;
+        font-size: 1rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+      }
+      th,
+      td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e4e7eb;
+        text-align: left;
+        font-size: 0.95rem;
+      }
+      th {
+        background: #f0f4f8;
+        font-weight: 600;
+      }
+      tbody tr:hover {
+        background: #f9fbfd;
+      }
+      .muted {
+        color: #7b8794;
+        font-size: 0.9rem;
+      }
+      #metrics-panel {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+      }
+      .metric-card {
+        background: #f8fafc;
+        border: 1px solid #e4e7eb;
+        border-radius: 10px;
+        padding: 0.75rem 1rem;
+      }
+      .metric-card h3 {
+        margin: 0;
+        font-size: 0.9rem;
+        color: #52606d;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .metric-card p {
+        margin: 0.35rem 0 0;
+        font-size: 1.35rem;
+        font-weight: 600;
+        color: #102a43;
+      }
+      #status {
+        margin-top: 0.5rem;
+        color: #c53030;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Beer Recommendation Dashboard</h1>
+          <p class="muted">
+            Showing latest output from <code>src/result/recommendations.json</code>
+          </p>
+        </div>
+        <label>
+          Sort by:&nbsp;
+          <select id="mode">
+            <option value="hybrid">Hybrid (CF × CBF)</option>
+            <option value="cf">Collaborative Filtering</option>
+            <option value="cbf">Content Based</option>
+          </select>
+        </label>
+      </header>
+
+      <section id="meta" class="muted"></section>
+      <section id="metrics-panel" aria-live="polite" class="muted">
+        지표 로딩 중…
+      </section>
+      <div id="status" role="status"></div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Beer</th>
+            <th>CF</th>
+            <th>CBF</th>
+            <th>Hybrid</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr>
+            <td colspan="5" class="muted">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
