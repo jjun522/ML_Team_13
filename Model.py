@@ -64,6 +64,7 @@ print(f"-> {OUT_TRAIN_REVIEWS}, {OUT_TEST_REVIEWS} 파일 저장 완료.")
 
 # ---
 # 1. 모델 기반 협업 필터링 (CF)
+# [scikit-surprise] SVD 모델 생성하기  https://westlife0615.tistory.com/858
 # ---
 print("\n--- 1. 협업 필터링(CF) 모델 학습 ---")
 reader = Reader(rating_scale=(1, 5))
@@ -105,9 +106,8 @@ features_scaled_df = pd.DataFrame(
 # 범주형 피처 원-핫 인코딩
 if 'Style' in recipes_features.columns:
     style_dummies = pd.get_dummies(recipes_features['Style'], prefix='Style')
-    # 수치형 + 범주형 피처 결합
     final_features_df = pd.concat([features_scaled_df, style_dummies], axis=1)
-    print(f"CBF 특성 생성 완료. (수치형 {len(numerical_features)}개 + 스타일 {len(style_dummies.columns)}개)")
+    print(f"CBF 특성 생성 완료)")
 else:
     print("경고: 'Style' 컬럼이 없습니다. 수치형 특성만 사용합니다.")
     final_features_df = features_scaled_df
@@ -122,16 +122,12 @@ print("코사인 유사도 계산 완료.")
 
 
 def get_content_based_recommendations(beer_norm_name, top_n=5):
-    """
-    특정 맥주와 모든 특성이 가장 유사한 맥주 Top-N 반환
-    (단, 100% 동일 및 99% 이상 '복제 맥주'는 제외)
-    """
     if beer_norm_name not in item_similarity_df:
         return pd.Series(dtype='float64')
 
     similar_scores = item_similarity_df[beer_norm_name]
 
-    # 1.00 (완벽히 일치) 및 0.99 이상 (사실상 복제) 맥주를 필터링
+    # 복제 레시피 필터링
     similar_scores = similar_scores[similar_scores < 0.99]
 
     similar_scores = similar_scores.drop(beer_norm_name, errors='ignore').sort_values(ascending=False)
@@ -147,8 +143,8 @@ print("CBF 모델 준비 완료.")
 print("\n--- 3. 3가지 추천 목록 생성 (CF, CBF, Hybrid) ---")
 
 # 가중치 (조절 가능)
-W_CF = 1.0  # 협업 필터링(개인 취향) 가중치
-W_CBF = 0.5  # 콘텐츠 기반(유사도) 가중치
+W_CF = 1.0  # 협업 필터링 가중치
+W_CBF = 0.5  # 콘텐츠 기반 가중치
 
 
 def get_all_recommendations(user_id, top_n=10):
@@ -167,7 +163,6 @@ def get_all_recommendations(user_id, top_n=10):
         print(f"'{user_id}'님은 평점 4.0 이상인 맥주가 없습니다. (콜드 스타트)")
         return None, None, None
 
-    # CBF 후보군 점수 저장
     candidate_beers = {}
     for beer_norm in top_user_beers:
         similar_beers = get_content_based_recommendations(beer_norm, top_n=10)
@@ -181,12 +176,11 @@ def get_all_recommendations(user_id, top_n=10):
 
         cf_score = algo_svd.predict(uid=user_id, iid=beer_norm).est
 
-        # Hybrid 점수 계산
+        # 가중치 계산
         hybrid_score = (cf_score ** W_CF) * (cbf_max_score ** W_CBF)
 
         all_scores.append((beer_norm, cf_score, cbf_max_score, hybrid_score))
 
-    # 4. 3가지 리스트 생성
     cf_recs = sorted(all_scores, key=lambda x: x[1], reverse=True)[:top_n]
     cbf_recs = sorted(all_scores, key=lambda x: x[2], reverse=True)[:top_n]
     hybrid_recs = sorted(all_scores, key=lambda x: x[3], reverse=True)[:top_n]
@@ -208,17 +202,17 @@ cf_recs, cbf_recs, hybrid_recs = get_all_recommendations(TEST_USER, top_n=10)
 print(f"\n--- [최종 추천 결과 (for {TEST_USER})] ---")
 
 if cf_recs:
-    # 1. CF 추천 (개인 취향 기반)
+    # 1. 개인 취향 기반
     print("\n[추천 1: 협업 필터링 (CF) - 당신의 취향과 유사한 추천]")
     for beer, cf, cbf, hy in cf_recs:
         print(f"  - {beer} (예상CF점수: {cf:.2f})")
 
-    # 2. CBF 추천 (콘텐츠 유사도 기반)
+    # 2. 콘텐츠 유사도 기반
     print("\n[추천 2: 콘텐츠 기반 (CBF) - 당신이 좋아한 맥주와 '성분'이 유사한 추천]")
     for beer, cf, cbf, hy in cbf_recs:
         print(f"  - {beer} (유사도(CBF): {cbf:.2f})")
 
-    # 3. Hybrid 추천 (가중치 곱셈)
+    # 3. Hybrid 추천
     print("\n[추천 3: 하이브리드 (Hybrid) - CF와 CBF를 모두 고려한 추천]")
     for beer, cf, cbf, hy in hybrid_recs:
         print(f"  - {beer} (최종점수: {hy:.2f} | CF {cf:.2f}, CBF {cbf:.2f})")
