@@ -1,11 +1,1 @@
-/butterfly.jpg
-/car.csv
-/CV
-/dbscan_purity_results.csv
-/Inclasslab1.py
-/Inclasslab2.py
-/Inclasslab_202334474_박정원.zip
-/insurance.csv
-/machinelearning.py
-/mushrooms.csv
-/SIFT.py
+__pycache__/
